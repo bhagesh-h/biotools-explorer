@@ -15,14 +15,6 @@ export function PerplexityAttribution() {
               <span className="font-semibold text-foreground">Bhagesh</span>
             </span>
             <span className="hidden sm:inline text-border">|</span>
-            <a
-              href="https://www.perplexity.ai/computer"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors"
-            >
-              Built with Perplexity Computer
-            </a>
           </div>
 
           {/* Right: Social links */}
