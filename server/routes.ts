@@ -2,22 +2,72 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import type { GithubRepo, DockerImage, Publication } from "@shared/schema";
 
-// ---- GitHub API ----
-async function searchGithub(query: string): Promise<GithubRepo[]> {
+const GITHUB_HEADERS = {
+  Accept: "application/vnd.github.v3+json",
+  "User-Agent": "BioTools-Dashboard",
+};
+
+// Bioinformatics keywords paired with the query for GitHub search.
+// GitHub limits OR-clause complexity — 5 terms is the safe maximum
+// before the API starts returning 0 results.
+const BIO_CONTEXT_KEYWORDS = [
+  "aligner", "sequencing", "bioinformatics", "genomics", "RNA-seq",
+];
+
+/**
+ * Smart GitHub search: runs two queries in parallel —
+ *  1) Bioinformatics-scoped: pairs query with bio keywords (e.g. "STAR aligner OR STAR sequencing")
+ *  2) General: query in repo name, sorted by stars
+ * Then deduplicates and merges, putting bio-relevant results first.
+ */
+async function searchGithub(query: string, limit: number): Promise<GithubRepo[]> {
   try {
-    const searchUrl = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}+in:name,description&sort=stars&order=desc&per_page=5`;
-    const res = await fetch(searchUrl, {
-      headers: {
-        Accept: "application/vnd.github.v3+json",
-        "User-Agent": "BioTools-Dashboard",
-      },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const items = data.items || [];
+    // Build bio query: "STAR+aligner+OR+STAR+sequencing+OR+STAR+bioinformatics ..."
+    // GitHub Search API expects spaces as + (not %20) and literal +OR+ for boolean OR.
+    // Encode each term individually with encodeURIComponent, then replace %20 with +,
+    // so the final URL has STAR+aligner+OR+STAR+sequencing etc.
+    const bioTerms = BIO_CONTEXT_KEYWORDS
+      .map((kw) => encodeURIComponent(`${query} ${kw}`).replace(/%20/g, "+"))
+      .join("+OR+");
+    const bioUrl = `https://api.github.com/search/repositories?q=${bioTerms}+in:name,description&sort=stars&order=desc&per_page=${limit}`;
+    // General search: name + description, sorted by stars
+    const generalUrl = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}+in:name,description&sort=stars&order=desc&per_page=${limit}`;
+
+    const [bioRes, generalRes] = await Promise.all([
+      fetch(bioUrl, { headers: GITHUB_HEADERS }).catch(() => null),
+      fetch(generalUrl, { headers: GITHUB_HEADERS }).catch(() => null),
+    ]);
+
+    const bioItems = bioRes?.ok ? (await bioRes.json()).items || [] : [];
+    const generalItems = generalRes?.ok ? (await generalRes.json()).items || [] : [];
+
+    // Smart merge: combine both result sets, deduplicate, then sort by a
+    // relevance score that gives bio-scoped results a 10x star boost.
+    // This ensures:
+    //  - STAR → alexdobin/STAR (2K stars, bio-matched) beats starship (55K stars, not bio)
+    //  - BWA → lh3/bwa (1.7K stars, general) beats obscure bio-tagged repos (0-5 stars)
+    const bioNames = new Set(bioItems.map((item: any) => item.full_name));
+    const seen = new Set<string>();
+    const candidates: { item: any; score: number }[] = [];
+
+    for (const item of [...bioItems, ...generalItems]) {
+      if (!seen.has(item.full_name)) {
+        seen.add(item.full_name);
+        const stars = item.stargazers_count || 0;
+        // Bio-matched repos with meaningful star counts get a large boost so they
+        // outrank popular but irrelevant general results (e.g. starship for "STAR").
+        // But low-star bio repos (≤10 stars) don't get boosted — they're likely
+        // noise that shouldn't outrank well-known tools (e.g. lh3/bwa for "BWA").
+        const isBio = bioNames.has(item.full_name);
+        const score = (isBio && stars > 10) ? stars + 1_000_000 : stars;
+        candidates.push({ item, score });
+      }
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    const merged = candidates.slice(0, limit).map((c) => c.item);
 
     const repos: GithubRepo[] = await Promise.all(
-      items.map(async (repo: any) => {
+      merged.map(async (repo: any) => {
         // Get releases
         let latestVersion: string | null = null;
         let latestReleaseDate: string | null = null;
@@ -27,12 +77,7 @@ async function searchGithub(query: string): Promise<GithubRepo[]> {
         try {
           const releasesRes = await fetch(
             `https://api.github.com/repos/${repo.full_name}/releases?per_page=100`,
-            {
-              headers: {
-                Accept: "application/vnd.github.v3+json",
-                "User-Agent": "BioTools-Dashboard",
-              },
-            }
+            { headers: GITHUB_HEADERS }
           );
           if (releasesRes.ok) {
             const releases = await releasesRes.json();
@@ -52,12 +97,7 @@ async function searchGithub(query: string): Promise<GithubRepo[]> {
           try {
             const tagsRes = await fetch(
               `https://api.github.com/repos/${repo.full_name}/tags?per_page=1`,
-              {
-                headers: {
-                  Accept: "application/vnd.github.v3+json",
-                  "User-Agent": "BioTools-Dashboard",
-                },
-              }
+              { headers: GITHUB_HEADERS }
             );
             if (tagsRes.ok) {
               const tags = await tagsRes.json();
@@ -71,28 +111,17 @@ async function searchGithub(query: string): Promise<GithubRepo[]> {
         }
 
         // Get accurate open & closed issues counts via Search API
-        // (repo.open_issues_count includes PRs, so we use the Search API instead)
         let openIssues = 0;
         let closedIssues = 0;
         try {
           const [openRes, closedRes] = await Promise.all([
             fetch(
               `https://api.github.com/search/issues?q=repo:${repo.full_name}+type:issue+state:open&per_page=1`,
-              {
-                headers: {
-                  Accept: "application/vnd.github.v3+json",
-                  "User-Agent": "BioTools-Dashboard",
-                },
-              }
+              { headers: GITHUB_HEADERS }
             ),
             fetch(
               `https://api.github.com/search/issues?q=repo:${repo.full_name}+type:issue+state:closed&per_page=1`,
-              {
-                headers: {
-                  Accept: "application/vnd.github.v3+json",
-                  "User-Agent": "BioTools-Dashboard",
-                },
-              }
+              { headers: GITHUB_HEADERS }
             ),
           ]);
           if (openRes.ok) {
@@ -104,7 +133,6 @@ async function searchGithub(query: string): Promise<GithubRepo[]> {
             closedIssues = closedData.total_count || 0;
           }
         } catch {
-          // Fallback to repo.open_issues_count if Search API fails
           openIssues = repo.open_issues_count;
         }
 
@@ -140,9 +168,9 @@ async function searchGithub(query: string): Promise<GithubRepo[]> {
 }
 
 // ---- Docker Hub API ----
-async function searchDockerHub(query: string): Promise<DockerImage[]> {
+async function searchDockerHub(query: string, limit: number): Promise<DockerImage[]> {
   try {
-    const url = `https://hub.docker.com/v2/search/repositories/?query=${encodeURIComponent(query)}&page_size=5`;
+    const url = `https://hub.docker.com/v2/search/repositories/?query=${encodeURIComponent(query)}&page_size=${limit}`;
     const res = await fetch(url, {
       headers: { "User-Agent": "BioTools-Dashboard" },
     });
@@ -194,10 +222,9 @@ async function searchDockerHub(query: string): Promise<DockerImage[]> {
 }
 
 // ---- Europe PMC (literature) ----
-async function searchPublications(query: string): Promise<Publication[]> {
+async function searchPublications(query: string, limit: number): Promise<Publication[]> {
   try {
-    // Search Europe PMC which covers PubMed and PMC
-    const url = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(query + " bioinformatics OR software OR tool OR pipeline")}&resultType=core&pageSize=8&format=json&sort=CITED desc`;
+    const url = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(query + " bioinformatics OR software OR tool OR pipeline")}&resultType=core&pageSize=${limit}&format=json&sort=CITED desc`;
     const res = await fetch(url, {
       headers: { "User-Agent": "BioTools-Dashboard" },
     });
@@ -238,7 +265,6 @@ async function searchPublications(query: string): Promise<Publication[]> {
         usageSummary = "Primary tool / method description";
       }
 
-      // Authors
       const authors = pub.authorString || "Unknown authors";
 
       return {
@@ -272,12 +298,16 @@ export async function registerRoutes(
       return res.status(400).json({ error: "Query parameter 'q' is required" });
     }
 
+    // Parse limit: default 10, min 5, max 25
+    let limit = parseInt(req.query.limit as string) || 10;
+    limit = Math.max(5, Math.min(25, limit));
+
     try {
       // Fetch all data in parallel
       const [github, docker, publications] = await Promise.all([
-        searchGithub(query),
-        searchDockerHub(query),
-        searchPublications(query),
+        searchGithub(query, limit),
+        searchDockerHub(query, limit),
+        searchPublications(query, limit),
       ]);
 
       res.json({

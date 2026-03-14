@@ -5,13 +5,14 @@ import type { ToolData } from "@shared/schema";
 
 interface ToolResultsWrapperProps {
   toolName: string;
+  limit: number;
   onRemove: () => void;
   onLoaded: (data: ToolData) => void;
   onLoadingChange: (loading: boolean) => void;
 }
 
-export function ToolResultsWrapper({ toolName, onRemove, onLoaded, onLoadingChange }: ToolResultsWrapperProps) {
-  const { data, isLoading, error } = useToolSearch(toolName);
+export function ToolResultsWrapper({ toolName, limit, onRemove, onLoaded, onLoadingChange }: ToolResultsWrapperProps) {
+  const { data, isLoading, error } = useToolSearch(toolName, limit);
 
   useEffect(() => {
     if (data) {

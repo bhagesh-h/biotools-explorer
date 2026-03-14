@@ -5,13 +5,21 @@ import { ComparisonView } from "@/components/comparison-view";
 import { EmptyState } from "@/components/empty-state";
 import type { ToolData } from "@shared/schema";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutGrid, GitCompare } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { LayoutGrid, GitCompare, Hash } from "lucide-react";
 
 export default function Dashboard() {
   const [searchedTools, setSearchedTools] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("explore");
   const [loadedToolsMap, setLoadedToolsMap] = useState<Record<string, ToolData>>({});
   const [loadingTools, setLoadingTools] = useState<Set<string>>(new Set());
+  const [resultLimit, setResultLimit] = useState(10);
 
   const addTool = useCallback((name: string) => {
     const trimmed = name.trim().toLowerCase();
@@ -57,6 +65,8 @@ export default function Dashboard() {
         onAddTool={addTool}
         onRemoveTool={removeTool}
         isLoading={isLoading}
+        resultLimit={resultLimit}
+        onResultLimitChange={setResultLimit}
       />
 
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 pb-12">
@@ -80,8 +90,9 @@ export default function Dashboard() {
             <TabsContent value="explore" className="mt-4 space-y-6">
               {searchedTools.map((toolName) => (
                 <ToolResultsWrapper
-                  key={toolName}
+                  key={`${toolName}-${resultLimit}`}
                   toolName={toolName}
+                  limit={resultLimit}
                   onRemove={() => removeTool(toolName)}
                   onLoaded={(data) => onToolLoaded(toolName, data)}
                   onLoadingChange={(loading) => onToolLoadingChange(toolName, loading)}

@@ -2,7 +2,14 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, X, Sun, Moon, Dna, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Search, X, Sun, Moon, Dna, Loader2, Hash } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 
 interface SearchHeaderProps {
@@ -10,9 +17,18 @@ interface SearchHeaderProps {
   onAddTool: (name: string) => void;
   onRemoveTool: (name: string) => void;
   isLoading: boolean;
+  resultLimit: number;
+  onResultLimitChange: (limit: number) => void;
 }
 
-export function SearchHeader({ searchedTools, onAddTool, onRemoveTool, isLoading }: SearchHeaderProps) {
+export function SearchHeader({
+  searchedTools,
+  onAddTool,
+  onRemoveTool,
+  isLoading,
+  resultLimit,
+  onResultLimitChange,
+}: SearchHeaderProps) {
   const [input, setInput] = useState("");
   const { theme, toggleTheme } = useTheme();
 
@@ -27,10 +43,10 @@ export function SearchHeader({ searchedTools, onAddTool, onRemoveTool, isLoading
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3">
-        {/* Mobile: two rows — logo row + search row.  Desktop: single row, search centered */}
+        {/* Mobile: two rows.  Desktop: single row, search centered */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-          {/* Top row on mobile: logo + theme toggle.  On desktop: logo (fixed width) */}
-          <div className="flex items-center justify-between sm:justify-start sm:w-24 shrink-0">
+          {/* Top row on mobile: logo + limit + theme toggle */}
+          <div className="flex items-center justify-between sm:justify-start sm:w-auto shrink-0 gap-2">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Dna className="h-4.5 w-4.5 text-primary-foreground" />
@@ -39,7 +55,30 @@ export function SearchHeader({ searchedTools, onAddTool, onRemoveTool, isLoading
                 BioTools
               </span>
             </div>
-            {/* Theme toggle visible on mobile in the top row, hidden on desktop (shown below) */}
+
+            {/* Results limit selector — always visible next to logo */}
+            <div className="flex items-center gap-1.5">
+              <Hash className="h-3 w-3 text-muted-foreground hidden sm:block" />
+              <Select
+                value={String(resultLimit)}
+                onValueChange={(v) => onResultLimitChange(parseInt(v))}
+              >
+                <SelectTrigger
+                  className="h-7 w-[80px] text-xs border-border/60"
+                  data-testid="select-result-limit"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5" className="text-xs">5 hits</SelectItem>
+                  <SelectItem value="10" className="text-xs">10 hits</SelectItem>
+                  <SelectItem value="15" className="text-xs">15 hits</SelectItem>
+                  <SelectItem value="25" className="text-xs">25 hits</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Theme toggle — mobile only */}
             <Button
               variant="ghost"
               size="icon"
@@ -75,8 +114,8 @@ export function SearchHeader({ searchedTools, onAddTool, onRemoveTool, isLoading
             </Button>
           </form>
 
-          {/* Theme toggle — desktop only, fixed width to balance logo */}
-          <div className="hidden sm:flex w-24 justify-end">
+          {/* Theme toggle — desktop only */}
+          <div className="hidden sm:flex shrink-0">
             <Button
               variant="ghost"
               size="icon"
