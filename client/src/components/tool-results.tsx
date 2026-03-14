@@ -1,14 +1,21 @@
-import type { ToolData } from "@shared/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ToolData, GithubRepo, DockerImage, Publication } from "@shared/schema";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   X, Star, GitFork, Bug, Clock, ExternalLink, Tag,
   Calendar, Box, Download, BookOpen, ChevronDown, ChevronUp,
-  Globe, Shield
+  Globe, Shield, ArrowUpDown
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 
 interface ToolResultsProps {
@@ -18,6 +25,10 @@ interface ToolResultsProps {
   error: Error | null;
   onRemove: () => void;
 }
+
+type RepoSort = "stars" | "forks" | "open-issues" | "updated" | "created";
+type DockerSort = "pulls" | "stars" | "updated";
+type PubSort = "year-desc" | "year-asc" | "journal";
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "N/A";
@@ -39,6 +50,72 @@ function timeAgo(dateStr: string | null): string {
 
 function truncate(str: string, max: number): string {
   return str.length > max ? str.slice(0, max) + "..." : str;
+}
+
+function sortRepos(repos: GithubRepo[], sortBy: RepoSort): GithubRepo[] {
+  return [...repos].sort((a, b) => {
+    switch (sortBy) {
+      case "stars": return b.stars - a.stars;
+      case "forks": return b.forks - a.forks;
+      case "open-issues": return b.openIssues - a.openIssues;
+      case "updated": return new Date(b.pushedAt).getTime() - new Date(a.pushedAt).getTime();
+      case "created": return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      default: return 0;
+    }
+  });
+}
+
+function sortDocker(images: DockerImage[], sortBy: DockerSort): DockerImage[] {
+  return [...images].sort((a, b) => {
+    switch (sortBy) {
+      case "pulls": return b.pullCount - a.pullCount;
+      case "stars": return b.starCount - a.starCount;
+      case "updated":
+        return new Date(b.lastUpdated || 0).getTime() - new Date(a.lastUpdated || 0).getTime();
+      default: return 0;
+    }
+  });
+}
+
+function sortPubs(pubs: Publication[], sortBy: PubSort): Publication[] {
+  return [...pubs].sort((a, b) => {
+    switch (sortBy) {
+      case "year-desc": return parseInt(b.year) - parseInt(a.year);
+      case "year-asc": return parseInt(a.year) - parseInt(b.year);
+      case "journal": return (a.journal || "").localeCompare(b.journal || "");
+      default: return 0;
+    }
+  });
+}
+
+function SortControl<T extends string>({
+  value,
+  onChange,
+  options,
+  testId,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+  testId: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
+      <Select value={value} onValueChange={(v) => onChange(v as T)}>
+        <SelectTrigger className="h-7 w-[140px] text-[11px] border-border/60" data-testid={testId}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value} className="text-xs">
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
 }
 
 function LoadingSkeleton() {
@@ -66,6 +143,22 @@ function LoadingSkeleton() {
 export function ToolResults({ toolName, data, isLoading, error, onRemove }: ToolResultsProps) {
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   const [showAllPubs, setShowAllPubs] = useState(false);
+  const [repoSort, setRepoSort] = useState<RepoSort>("stars");
+  const [dockerSort, setDockerSort] = useState<DockerSort>("pulls");
+  const [pubSort, setPubSort] = useState<PubSort>("year-desc");
+
+  const sortedRepos = useMemo(
+    () => (data ? sortRepos(data.github, repoSort) : []),
+    [data, repoSort]
+  );
+  const sortedDocker = useMemo(
+    () => (data ? sortDocker(data.docker, dockerSort) : []),
+    [data, dockerSort]
+  );
+  const sortedPubs = useMemo(
+    () => (data ? sortPubs(data.publications, pubSort) : []),
+    [data, pubSort]
+  );
 
   if (error) {
     return (
@@ -105,13 +198,27 @@ export function ToolResults({ toolName, data, isLoading, error, onRemove }: Tool
       {data && (
         <>
           {/* GitHub Repositories */}
-          {data.github.length > 0 && (
+          {sortedRepos.length > 0 && (
             <div>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <GitFork className="h-3 w-3" /> Repositories
-              </h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <GitFork className="h-3 w-3" /> Repositories
+                </h3>
+                <SortControl
+                  value={repoSort}
+                  onChange={setRepoSort}
+                  testId={`sort-repos-${toolName}`}
+                  options={[
+                    { value: "stars", label: "Most stars" },
+                    { value: "forks", label: "Most forks" },
+                    { value: "open-issues", label: "Most issues" },
+                    { value: "updated", label: "Last updated" },
+                    { value: "created", label: "Newest first" },
+                  ]}
+                />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {data.github.map((repo) => (
+                {sortedRepos.map((repo) => (
                   <Card key={repo.fullName} className="border-border hover:border-primary/30 transition-colors group">
                     <CardContent className="p-4">
                       {/* Repo name + link */}
@@ -170,7 +277,7 @@ export function ToolResults({ toolName, data, isLoading, error, onRemove }: Tool
                         )}
                         <div className="flex items-center gap-1.5 text-muted-foreground">
                           <Clock className="h-3 w-3" />
-                          Updated {formatDate(repo.updatedAt)}
+                          Updated {formatDate(repo.pushedAt)}
                         </div>
                         <div className="flex items-center gap-1.5 text-muted-foreground">
                           <Calendar className="h-3 w-3" />
@@ -233,13 +340,25 @@ export function ToolResults({ toolName, data, isLoading, error, onRemove }: Tool
           )}
 
           {/* Docker Images */}
-          {data.docker.length > 0 && (
+          {sortedDocker.length > 0 && (
             <div>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Box className="h-3 w-3" /> Docker Images
-              </h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Box className="h-3 w-3" /> Docker Images
+                </h3>
+                <SortControl
+                  value={dockerSort}
+                  onChange={setDockerSort}
+                  testId={`sort-docker-${toolName}`}
+                  options={[
+                    { value: "pulls", label: "Most pulls" },
+                    { value: "stars", label: "Most stars" },
+                    { value: "updated", label: "Last updated" },
+                  ]}
+                />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {data.docker.map((img) => (
+                {sortedDocker.map((img) => (
                   <Card key={`${img.namespace}/${img.name}`} className="border-border hover:border-primary/30 transition-colors group">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-2 mb-2">
@@ -291,13 +410,25 @@ export function ToolResults({ toolName, data, isLoading, error, onRemove }: Tool
           )}
 
           {/* Publications */}
-          {data.publications.length > 0 && (
+          {sortedPubs.length > 0 && (
             <div>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <BookOpen className="h-3 w-3" /> Publications ({data.publications.length})
-              </h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <BookOpen className="h-3 w-3" /> Publications ({data.publications.length})
+                </h3>
+                <SortControl
+                  value={pubSort}
+                  onChange={setPubSort}
+                  testId={`sort-pubs-${toolName}`}
+                  options={[
+                    { value: "year-desc", label: "Newest first" },
+                    { value: "year-asc", label: "Oldest first" },
+                    { value: "journal", label: "By journal" },
+                  ]}
+                />
+              </div>
               <div className="space-y-2">
-                {(showAllPubs ? data.publications : data.publications.slice(0, 4)).map((pub, idx) => (
+                {(showAllPubs ? sortedPubs : sortedPubs.slice(0, 4)).map((pub, idx) => (
                   <Card key={`${pub.title}-${idx}`} className="border-border">
                     <CardContent className="p-3 flex gap-3">
                       <div className="flex-1 min-w-0">

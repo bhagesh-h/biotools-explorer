@@ -70,24 +70,42 @@ async function searchGithub(query: string): Promise<GithubRepo[]> {
           }
         }
 
-        // Get closed issues count
+        // Get accurate open & closed issues counts via Search API
+        // (repo.open_issues_count includes PRs, so we use the Search API instead)
+        let openIssues = 0;
         let closedIssues = 0;
         try {
-          const closedRes = await fetch(
-            `https://api.github.com/search/issues?q=repo:${repo.full_name}+type:issue+state:closed&per_page=1`,
-            {
-              headers: {
-                Accept: "application/vnd.github.v3+json",
-                "User-Agent": "BioTools-Dashboard",
-              },
-            }
-          );
+          const [openRes, closedRes] = await Promise.all([
+            fetch(
+              `https://api.github.com/search/issues?q=repo:${repo.full_name}+type:issue+state:open&per_page=1`,
+              {
+                headers: {
+                  Accept: "application/vnd.github.v3+json",
+                  "User-Agent": "BioTools-Dashboard",
+                },
+              }
+            ),
+            fetch(
+              `https://api.github.com/search/issues?q=repo:${repo.full_name}+type:issue+state:closed&per_page=1`,
+              {
+                headers: {
+                  Accept: "application/vnd.github.v3+json",
+                  "User-Agent": "BioTools-Dashboard",
+                },
+              }
+            ),
+          ]);
+          if (openRes.ok) {
+            const openData = await openRes.json();
+            openIssues = openData.total_count || 0;
+          }
           if (closedRes.ok) {
             const closedData = await closedRes.json();
             closedIssues = closedData.total_count || 0;
           }
         } catch {
-          // skip
+          // Fallback to repo.open_issues_count if Search API fails
+          openIssues = repo.open_issues_count;
         }
 
         return {
@@ -98,7 +116,7 @@ async function searchGithub(query: string): Promise<GithubRepo[]> {
           homepage: repo.homepage || null,
           stars: repo.stargazers_count,
           forks: repo.forks_count,
-          openIssues: repo.open_issues_count,
+          openIssues,
           closedIssues,
           latestVersion,
           latestReleaseDate,
@@ -106,6 +124,7 @@ async function searchGithub(query: string): Promise<GithubRepo[]> {
           firstReleaseDate,
           createdAt: repo.created_at,
           updatedAt: repo.updated_at,
+          pushedAt: repo.pushed_at || repo.updated_at,
           language: repo.language,
           license: repo.license?.spdx_id || null,
           topics: repo.topics || [],

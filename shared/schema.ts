@@ -23,6 +23,7 @@ export const githubRepoSchema = z.object({
   firstReleaseDate: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  pushedAt: z.string(),
   language: z.string().nullable(),
   license: z.string().nullable(),
   topics: z.array(z.string()),

@@ -28,8 +28,8 @@ export function SearchHeader({ searchedTools, onAddTool, onRemoveTool, isLoading
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3">
         <div className="flex items-center gap-3">
-          {/* Logo */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Logo — fixed width so the search bar centers properly */}
+          <div className="flex items-center gap-2 shrink-0 w-24">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <Dna className="h-4.5 w-4.5 text-primary-foreground" />
             </div>
@@ -38,8 +38,8 @@ export function SearchHeader({ searchedTools, onAddTool, onRemoveTool, isLoading
             </span>
           </div>
 
-          {/* Search */}
-          <form onSubmit={handleSubmit} className="flex-1 flex gap-2 max-w-xl">
+          {/* Search — centered with flex-1 + mx-auto */}
+          <form onSubmit={handleSubmit} className="flex-1 flex gap-2 max-w-xl mx-auto">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -62,16 +62,18 @@ export function SearchHeader({ searchedTools, onAddTool, onRemoveTool, isLoading
             </Button>
           </form>
 
-          {/* Theme toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            className="h-8 w-8 shrink-0"
-            data-testid="button-theme-toggle"
-          >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
+          {/* Theme toggle — fixed width to balance the logo side */}
+          <div className="w-24 flex justify-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-8 w-8 shrink-0"
+              data-testid="button-theme-toggle"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
 
         {/* Active tool badges */}

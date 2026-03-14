@@ -12,7 +12,7 @@ import {
 import {
   Star, GitFork, Bug, Tag, Clock, Box, BookOpen,
   ExternalLink, ArrowUpDown, Check, X as XIcon,
-  Calendar
+  Calendar, Settings2
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { formatDistanceToNow, format } from "date-fns";
@@ -37,26 +37,29 @@ export function ComparisonView({ tools }: ComparisonProps) {
   const [sortBy, setSortBy] = useState<SortKey>("stars");
   const [filterDocker, setFilterDocker] = useState(false);
   const [filterPubs, setFilterPubs] = useState(false);
+  // Per-tool selected repo index: { "bwa": 0, "samtools": 1, ... }
+  const [selectedRepoIdx, setSelectedRepoIdx] = useState<Record<string, number>>({});
 
-  // Build comparison rows from the top GitHub repo for each tool
+  // Build comparison rows using the selected repo for each tool
   const rows = useMemo(() => {
     return tools.map((t) => {
-      const topRepo = t.data.github[0] || null;
+      const repoIdx = selectedRepoIdx[t.name] ?? 0;
+      const selectedRepo = t.data.github[repoIdx] || t.data.github[0] || null;
       const hasDocker = t.data.docker.length > 0;
       const pubCount = t.data.publications.length;
       return {
         name: t.name,
         data: t.data,
-        topRepo,
+        selectedRepo,
         hasDocker,
         pubCount,
-        stars: topRepo?.stars ?? 0,
-        updatedAt: topRepo?.updatedAt ?? "",
-        openIssues: topRepo?.openIssues ?? 0,
-        closedIssues: topRepo?.closedIssues ?? 0,
+        stars: selectedRepo?.stars ?? 0,
+        pushedAt: selectedRepo?.pushedAt ?? "",
+        openIssues: selectedRepo?.openIssues ?? 0,
+        closedIssues: selectedRepo?.closedIssues ?? 0,
       };
     });
-  }, [tools]);
+  }, [tools, selectedRepoIdx]);
 
   // Filter
   const filtered = rows.filter((r) => {
@@ -69,7 +72,7 @@ export function ComparisonView({ tools }: ComparisonProps) {
   const sorted = [...filtered].sort((a, b) => {
     switch (sortBy) {
       case "stars": return b.stars - a.stars;
-      case "updated": return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      case "updated": return new Date(b.pushedAt).getTime() - new Date(a.pushedAt).getTime();
       case "issues": return b.openIssues - a.openIssues;
       case "publications": return b.pubCount - a.pubCount;
       case "docker": return (b.hasDocker ? 1 : 0) - (a.hasDocker ? 1 : 0);
@@ -79,9 +82,11 @@ export function ComparisonView({ tools }: ComparisonProps) {
 
   // Find "best" in each category
   const maxStars = Math.max(...rows.map((r) => r.stars));
-  const mostRecent = rows.reduce((a, b) =>
-    new Date(a.updatedAt).getTime() > new Date(b.updatedAt).getTime() ? a : b
-  ).name;
+  const mostRecent = rows.length > 0
+    ? rows.reduce((a, b) =>
+        new Date(a.pushedAt).getTime() > new Date(b.pushedAt).getTime() ? a : b
+      ).name
+    : "";
   const mostPubs = Math.max(...rows.map((r) => r.pubCount));
 
   return (
@@ -129,6 +134,52 @@ export function ComparisonView({ tools }: ComparisonProps) {
         </Button>
       </div>
 
+      {/* Repo selector per tool — show when any tool has >1 repo */}
+      {tools.some((t) => t.data.github.length > 1) && (
+        <Card className="border-border bg-muted/30">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">Select repository to compare for each tool</span>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {tools.map((t) => (
+                <div key={t.name} className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-semibold text-primary uppercase tracking-wide">
+                    {t.name}
+                  </span>
+                  {t.data.github.length > 1 ? (
+                    <Select
+                      value={String(selectedRepoIdx[t.name] ?? 0)}
+                      onValueChange={(v) =>
+                        setSelectedRepoIdx((prev) => ({ ...prev, [t.name]: parseInt(v) }))
+                      }
+                    >
+                      <SelectTrigger className="h-7 w-[220px] text-[11px] border-border/60" data-testid={`select-repo-${t.name}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {t.data.github.map((repo, idx) => (
+                          <SelectItem key={repo.fullName} value={String(idx)} className="text-xs">
+                            {repo.fullName} ({repo.stars.toLocaleString()} ★)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : t.data.github.length === 1 ? (
+                    <span className="text-[11px] text-muted-foreground">
+                      {t.data.github[0].fullName}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground italic">No repos</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Comparison Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-xs border-collapse" data-testid="comparison-table">
@@ -139,7 +190,7 @@ export function ComparisonView({ tools }: ComparisonProps) {
               <th className="py-2.5 px-3 font-medium text-muted-foreground text-right">Stars</th>
               <th className="py-2.5 px-3 font-medium text-muted-foreground text-right">Forks</th>
               <th className="py-2.5 px-3 font-medium text-muted-foreground">Version</th>
-              <th className="py-2.5 px-3 font-medium text-muted-foreground">Last Update</th>
+              <th className="py-2.5 px-3 font-medium text-muted-foreground">Last Push</th>
               <th className="py-2.5 px-3 font-medium text-muted-foreground">Created</th>
               <th className="py-2.5 px-3 font-medium text-muted-foreground text-right">Open</th>
               <th className="py-2.5 px-3 font-medium text-muted-foreground text-right">Closed</th>
@@ -161,14 +212,14 @@ export function ComparisonView({ tools }: ComparisonProps) {
                   </span>
                 </td>
                 <td className="py-2.5 px-3">
-                  {row.topRepo ? (
+                  {row.selectedRepo ? (
                     <a
-                      href={row.topRepo.url}
+                      href={row.selectedRepo.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-foreground hover:text-primary transition-colors flex items-center gap-1"
                     >
-                      {row.topRepo.fullName}
+                      {row.selectedRepo.fullName}
                       <ExternalLink className="h-2.5 w-2.5 text-muted-foreground" />
                     </a>
                   ) : (
@@ -181,12 +232,12 @@ export function ComparisonView({ tools }: ComparisonProps) {
                   </span>
                 </td>
                 <td className="py-2.5 px-3 text-right tabular-nums">
-                  {row.topRepo?.forks.toLocaleString() ?? "—"}
+                  {row.selectedRepo?.forks.toLocaleString() ?? "—"}
                 </td>
                 <td className="py-2.5 px-3">
-                  {row.topRepo?.latestVersion ? (
+                  {row.selectedRepo?.latestVersion ? (
                     <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono">
-                      {row.topRepo.latestVersion}
+                      {row.selectedRepo.latestVersion}
                     </Badge>
                   ) : (
                     <span className="text-muted-foreground">—</span>
@@ -194,11 +245,11 @@ export function ComparisonView({ tools }: ComparisonProps) {
                 </td>
                 <td className="py-2.5 px-3">
                   <span className={row.name === mostRecent ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground"}>
-                    {formatDate(row.updatedAt)}
+                    {formatDate(row.pushedAt)}
                   </span>
                 </td>
                 <td className="py-2.5 px-3 text-muted-foreground">
-                  {formatDate(row.topRepo?.createdAt ?? null)}
+                  {formatDate(row.selectedRepo?.createdAt ?? null)}
                 </td>
                 <td className="py-2.5 px-3 text-right tabular-nums">
                   {row.openIssues}
@@ -219,9 +270,9 @@ export function ComparisonView({ tools }: ComparisonProps) {
                   </span>
                 </td>
                 <td className="py-2.5 px-3">
-                  {row.topRepo?.language ? (
+                  {row.selectedRepo?.language ? (
                     <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
-                      {row.topRepo.language}
+                      {row.selectedRepo.language}
                     </Badge>
                   ) : (
                     <span className="text-muted-foreground">—</span>
