@@ -2,7 +2,9 @@
 
 A live, searchable dashboard for discovering and comparing bioinformatics tools. Search by name to instantly aggregate metadata from GitHub, Docker Hub, and scholarly literature (Europe PMC / PubMed) — all in one view.
 
-**Live demo:** [biotools-explorer](https://www.perplexity.ai/computer/a/biotools-explorer-ZmffO2joRxKy.rzvroNtAQ)
+**Live demo:** 
+- [biotools-explorer](https://biotools-explorer.onrender.com/#/)
+- [biotools-explorer (PC ONLY) ](https://www.perplexity.ai/computer/a/biotools-explorer-ZmffO2joRxKy.rzvroNtAQ)
 
 ---
 
