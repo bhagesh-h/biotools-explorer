@@ -6,7 +6,6 @@ A live, searchable app for discovering and comparing bioinformatics tools. Searc
 - [biotools-explorer](https://biotools-explorer.onrender.com/#/)
 - [biotools-explorer (PC ONLY)](https://www.perplexity.ai/computer/a/biotools-explorer-ZmffO2joRxKy.rzvroNtAQ)
 
----
 
 ## Table of Contents
 
@@ -26,7 +25,6 @@ A live, searchable app for discovering and comparing bioinformatics tools. Searc
 - [License](#license)
 - [Author](#author)
 
----
 
 ## Features
 
@@ -39,7 +37,6 @@ A live, searchable app for discovering and comparing bioinformatics tools. Searc
 - **Responsive** — Works on mobile, tablet, and desktop.
 - **No database required** — All data is fetched live from public APIs. No sign-up or API keys needed.
 
----
 
 ## Screenshots
 
@@ -52,7 +49,6 @@ Search results display repository cards, Docker images, and publications in sepa
 ### Comparison View
 A data table comparing multiple tools side-by-side on all dimensions, plus a Docker comparison section.
 
----
 
 ## Architecture
 
@@ -77,7 +73,6 @@ A data table comparing multiple tools side-by-side on all dimensions, plus a Doc
 
 The server acts as a lightweight proxy/aggregator — it makes parallel requests to three public APIs, normalizes the responses, and returns a unified JSON payload to the frontend. No database, no authentication, no persistent state.
 
----
 
 ## Prerequisites
 
@@ -89,7 +84,6 @@ The server acts as a lightweight proxy/aggregator — it makes parallel requests
 
 > **Note:** This project uses Node.js `fetch()` (available from Node 18+). No Python or other runtimes are required.
 
----
 
 ## Installation
 
@@ -108,7 +102,6 @@ npm install
 
 This installs all dependencies listed in `package.json` — both runtime and development. There is no separate `requirements.txt` because this is a JavaScript/TypeScript project managed entirely by npm.
 
----
 
 ## Running in Development
 
@@ -122,7 +115,6 @@ This starts a single process that serves both the **Express backend** (API route
 - Frontend changes hot-reload automatically.
 - Backend changes require restarting the command.
 
----
 
 ## Building for Production
 
@@ -150,7 +142,6 @@ NODE_ENV=production node dist/index.cjs
 
 The production server serves the static frontend and the API on port **5000**.
 
----
 
 ## Project Structure
 
@@ -202,7 +193,6 @@ biotools-dashboard/
 └── .gitignore
 ```
 
----
 
 ## API Reference
 
@@ -276,7 +266,6 @@ Searches GitHub, Docker Hub, and Europe PMC in parallel for the given tool name.
 - `400` — Missing or empty `q` parameter.
 - `500` — Server-side error during API fetching.
 
----
 
 ## External APIs Used
 
@@ -307,7 +296,6 @@ headers: {
 },
 ```
 
----
 
 ## Usage Guide
 
@@ -361,7 +349,6 @@ Click the **×** on any tool badge in the header, or click **Remove** in the too
 
 Click the **sun/moon icon** in the top-right corner of the header. The theme defaults to your system preference.
 
----
 
 ## Configuration
 
@@ -379,7 +366,6 @@ Click the **sun/moon icon** in the top-right corner of the header. The theme def
 - **Change theme colors** — Edit `client/src/index.css`. The `--primary` variable controls the accent color (currently teal `174 72% 32%`).
 - **Increase API results** — In `server/routes.ts`, change `per_page=5` (GitHub), `page_size=5` (Docker), or `pageSize=8` (Europe PMC) to higher values.
 
----
 
 ## Troubleshooting
 
@@ -406,7 +392,6 @@ Or set a different port: `PORT=3000 npm run dev`
 ### Docker/publications not showing for a tool
 Some tools may not have Docker images or indexed publications. The sections only appear when results are found.
 
----
 
 ## Available npm Scripts
 
@@ -417,7 +402,6 @@ Some tools may not have Docker images or indexed publications. The sections only
 | `npm start`       | Run the production server from `dist/`                  |
 | `npm run check`   | Run TypeScript type checking                            |
 
----
 
 ## Author
 
