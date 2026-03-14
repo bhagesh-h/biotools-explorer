@@ -6,6 +6,15 @@ export const toolSearchSchema = z.object({
 });
 export type ToolSearchRequest = z.infer<typeof toolSearchSchema>;
 
+// Release entry for changelog
+export const releaseEntrySchema = z.object({
+  tag: z.string(),
+  name: z.string().nullable(),
+  publishedAt: z.string().nullable(),
+  body: z.string().nullable(),
+});
+export type ReleaseEntry = z.infer<typeof releaseEntrySchema>;
+
 // GitHub repository data
 export const githubRepoSchema = z.object({
   name: z.string(),
@@ -21,6 +30,7 @@ export const githubRepoSchema = z.object({
   latestReleaseDate: z.string().nullable(),
   latestReleaseNotes: z.string().nullable(),
   firstReleaseDate: z.string().nullable(),
+  changelog: z.array(releaseEntrySchema),
   createdAt: z.string(),
   updatedAt: z.string(),
   pushedAt: z.string(),

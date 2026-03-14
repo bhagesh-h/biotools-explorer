@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import type { GithubRepo, DockerImage, Publication } from "@shared/schema";
+import type { GithubRepo, DockerImage, Publication, ReleaseEntry } from "@shared/schema";
 
 const GITHUB_HEADERS = {
   Accept: "application/vnd.github.v3+json",
@@ -66,99 +66,117 @@ async function searchGithub(query: string, limit: number): Promise<GithubRepo[]>
     candidates.sort((a, b) => b.score - a.score);
     const merged = candidates.slice(0, limit).map((c) => c.item);
 
-    const repos: GithubRepo[] = await Promise.all(
-      merged.map(async (repo: any) => {
-        // Get releases
-        let latestVersion: string | null = null;
-        let latestReleaseDate: string | null = null;
-        let latestReleaseNotes: string | null = null;
-        let firstReleaseDate: string | null = null;
+    // Enrich repos with release/issue data in batches of 5 to avoid
+    // GitHub rate limits (60 Core API calls/hr, 10 Search API calls/min).
+    // Fallback to basic data from the search response if rate-limited.
+    async function enrichRepo(repo: any): Promise<GithubRepo> {
+      let latestVersion: string | null = null;
+      let latestReleaseDate: string | null = null;
+      let latestReleaseNotes: string | null = null;
+      let firstReleaseDate: string | null = null;
+      let changelog: ReleaseEntry[] = [];
 
+      // Fetch releases (up to 20 for changelog)
+      try {
+        const releasesRes = await fetch(
+          `https://api.github.com/repos/${repo.full_name}/releases?per_page=20`,
+          { headers: GITHUB_HEADERS }
+        );
+        if (releasesRes.ok) {
+          const releases = await releasesRes.json();
+          if (releases.length > 0) {
+            latestVersion = releases[0].tag_name;
+            latestReleaseDate = releases[0].published_at;
+            latestReleaseNotes = (releases[0].body || "").slice(0, 500);
+            firstReleaseDate = releases[releases.length - 1].published_at;
+            changelog = releases.map((r: any) => ({
+              tag: r.tag_name,
+              name: r.name || null,
+              publishedAt: r.published_at || null,
+              body: (r.body || "").slice(0, 300) || null,
+            }));
+          }
+        }
+      } catch {
+        // Rate-limited or network error — continue with basic data
+      }
+
+      // If no releases, try tags (just 1 call)
+      if (!latestVersion) {
         try {
-          const releasesRes = await fetch(
-            `https://api.github.com/repos/${repo.full_name}/releases?per_page=100`,
+          const tagsRes = await fetch(
+            `https://api.github.com/repos/${repo.full_name}/tags?per_page=1`,
             { headers: GITHUB_HEADERS }
           );
-          if (releasesRes.ok) {
-            const releases = await releasesRes.json();
-            if (releases.length > 0) {
-              latestVersion = releases[0].tag_name;
-              latestReleaseDate = releases[0].published_at;
-              latestReleaseNotes = (releases[0].body || "").slice(0, 500);
-              firstReleaseDate = releases[releases.length - 1].published_at;
+          if (tagsRes.ok) {
+            const tags = await tagsRes.json();
+            if (tags.length > 0) {
+              latestVersion = tags[0].name;
             }
           }
         } catch {
           // skip
         }
+      }
 
-        // If no releases, try tags
-        if (!latestVersion) {
-          try {
-            const tagsRes = await fetch(
-              `https://api.github.com/repos/${repo.full_name}/tags?per_page=1`,
-              { headers: GITHUB_HEADERS }
-            );
-            if (tagsRes.ok) {
-              const tags = await tagsRes.json();
-              if (tags.length > 0) {
-                latestVersion = tags[0].name;
-              }
-            }
-          } catch {
-            // skip
-          }
+      // Issue counts: try Search API, fall back to repo's open_issues_count
+      let openIssues = repo.open_issues_count || 0;
+      let closedIssues = 0;
+      try {
+        const [openRes, closedRes] = await Promise.all([
+          fetch(
+            `https://api.github.com/search/issues?q=repo:${repo.full_name}+type:issue+state:open&per_page=1`,
+            { headers: GITHUB_HEADERS }
+          ),
+          fetch(
+            `https://api.github.com/search/issues?q=repo:${repo.full_name}+type:issue+state:closed&per_page=1`,
+            { headers: GITHUB_HEADERS }
+          ),
+        ]);
+        if (openRes.ok) {
+          const openData = await openRes.json();
+          openIssues = openData.total_count ?? openIssues;
         }
-
-        // Get accurate open & closed issues counts via Search API
-        let openIssues = 0;
-        let closedIssues = 0;
-        try {
-          const [openRes, closedRes] = await Promise.all([
-            fetch(
-              `https://api.github.com/search/issues?q=repo:${repo.full_name}+type:issue+state:open&per_page=1`,
-              { headers: GITHUB_HEADERS }
-            ),
-            fetch(
-              `https://api.github.com/search/issues?q=repo:${repo.full_name}+type:issue+state:closed&per_page=1`,
-              { headers: GITHUB_HEADERS }
-            ),
-          ]);
-          if (openRes.ok) {
-            const openData = await openRes.json();
-            openIssues = openData.total_count || 0;
-          }
-          if (closedRes.ok) {
-            const closedData = await closedRes.json();
-            closedIssues = closedData.total_count || 0;
-          }
-        } catch {
-          openIssues = repo.open_issues_count;
+        if (closedRes.ok) {
+          const closedData = await closedRes.json();
+          closedIssues = closedData.total_count || 0;
         }
+      } catch {
+        // Keep fallback values
+      }
 
-        return {
-          name: repo.name,
-          fullName: repo.full_name,
-          description: repo.description,
-          url: repo.html_url,
-          homepage: repo.homepage || null,
-          stars: repo.stargazers_count,
-          forks: repo.forks_count,
-          openIssues,
-          closedIssues,
-          latestVersion,
-          latestReleaseDate,
-          latestReleaseNotes,
-          firstReleaseDate,
-          createdAt: repo.created_at,
-          updatedAt: repo.updated_at,
-          pushedAt: repo.pushed_at || repo.updated_at,
-          language: repo.language,
-          license: repo.license?.spdx_id || null,
-          topics: repo.topics || [],
-        };
-      })
-    );
+      return {
+        name: repo.name,
+        fullName: repo.full_name,
+        description: repo.description,
+        url: repo.html_url,
+        homepage: repo.homepage || null,
+        stars: repo.stargazers_count,
+        forks: repo.forks_count,
+        openIssues,
+        closedIssues,
+        latestVersion,
+        latestReleaseDate,
+        latestReleaseNotes,
+        firstReleaseDate,
+        changelog,
+        createdAt: repo.created_at,
+        updatedAt: repo.updated_at,
+        pushedAt: repo.pushed_at || repo.updated_at,
+        language: repo.language,
+        license: repo.license?.spdx_id || null,
+        topics: repo.topics || [],
+      };
+    }
+
+    // Process in batches of 5 to stay within rate limits
+    const repos: GithubRepo[] = [];
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < merged.length; i += BATCH_SIZE) {
+      const batch = merged.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map(enrichRepo));
+      repos.push(...batchResults);
+    }
 
     return repos;
   } catch (e) {
@@ -179,8 +197,17 @@ async function searchDockerHub(query: string, limit: number): Promise<DockerImag
     const results = data.results || [];
 
     const images: DockerImage[] = results.map((img: any) => {
-      const namespace = img.repo_owner || img.namespace || "library";
-      const name = img.repo_name || img.name;
+      // repo_name from Docker Hub search API is the full slug, e.g. "multiqc/multiqc"
+      // Parse it to extract namespace and short name
+      const repoSlug = img.repo_name || img.name || "";
+      let namespace: string;
+      let name: string;
+      if (repoSlug.includes("/")) {
+        [namespace, name] = repoSlug.split("/", 2);
+      } else {
+        namespace = img.repo_owner || img.namespace || "library";
+        name = repoSlug;
+      }
       return {
         name,
         namespace,

@@ -227,12 +227,16 @@ export function ComparisonView({ tools }: ComparisonProps) {
                   )}
                 </td>
                 <td className="py-2.5 px-3 text-right tabular-nums">
-                  <span className={row.stars === maxStars && maxStars > 0 ? "text-yellow-600 dark:text-yellow-400 font-semibold" : ""}>
-                    {row.stars.toLocaleString()}
-                  </span>
+                  {row.stars > 0 ? (
+                    <span className={row.stars === maxStars && maxStars > 0 ? "text-yellow-600 dark:text-yellow-400 font-semibold" : ""}>
+                      {row.stars.toLocaleString()}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </td>
                 <td className="py-2.5 px-3 text-right tabular-nums">
-                  {row.selectedRepo?.forks.toLocaleString() ?? "—"}
+                  {(row.selectedRepo?.forks ?? 0) > 0 ? row.selectedRepo?.forks.toLocaleString() : "—"}
                 </td>
                 <td className="py-2.5 px-3">
                   {row.selectedRepo?.latestVersion ? (
@@ -252,10 +256,10 @@ export function ComparisonView({ tools }: ComparisonProps) {
                   {formatDate(row.selectedRepo?.createdAt ?? null)}
                 </td>
                 <td className="py-2.5 px-3 text-right tabular-nums">
-                  {row.openIssues}
+                  {row.openIssues > 0 ? row.openIssues : "—"}
                 </td>
                 <td className="py-2.5 px-3 text-right tabular-nums">
-                  {row.closedIssues}
+                  {row.closedIssues > 0 ? row.closedIssues : "—"}
                 </td>
                 <td className="py-2.5 px-3 text-center">
                   {row.hasDocker ? (
@@ -265,9 +269,13 @@ export function ComparisonView({ tools }: ComparisonProps) {
                   )}
                 </td>
                 <td className="py-2.5 px-3 text-right tabular-nums">
-                  <span className={row.pubCount === mostPubs && mostPubs > 0 ? "text-primary font-semibold" : ""}>
-                    {row.pubCount}
-                  </span>
+                  {row.pubCount > 0 ? (
+                    <span className={row.pubCount === mostPubs && mostPubs > 0 ? "text-primary font-semibold" : ""}>
+                      {row.pubCount}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </td>
                 <td className="py-2.5 px-3">
                   {row.selectedRepo?.language ? (
@@ -321,7 +329,9 @@ export function ComparisonView({ tools }: ComparisonProps) {
                       </div>
                       <p className="text-xs text-muted-foreground font-mono">{img.namespace}/{img.name}</p>
                       <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
-                        <span className="tabular-nums">{img.pullCount.toLocaleString()} pulls</span>
+                        {img.pullCount > 0 && (
+                          <span className="tabular-nums">{img.pullCount.toLocaleString()} pulls</span>
+                        )}
                         <span>{img.latestTag && `Tag: ${img.latestTag}`}</span>
                       </div>
                       {img.lastUpdated && (

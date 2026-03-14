@@ -1,4 +1,4 @@
-import type { ToolData, GithubRepo, DockerImage, Publication } from "@shared/schema";
+import type { ToolData, GithubRepo, DockerImage, Publication, ReleaseEntry } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
 import {
   X, Star, GitFork, Bug, Clock, ExternalLink, Tag,
   Calendar, Box, Download, BookOpen, ChevronDown, ChevronUp,
-  Globe, Shield, ArrowUpDown
+  Globe, Shield, ArrowUpDown, History
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { formatDistanceToNow, format } from "date-fns";
@@ -142,6 +142,7 @@ function LoadingSkeleton() {
 
 export function ToolResults({ toolName, data, isLoading, error, onRemove }: ToolResultsProps) {
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
+  const [expandedChangelog, setExpandedChangelog] = useState<Record<string, boolean>>({});
   const [showAllPubs, setShowAllPubs] = useState(false);
   const [repoSort, setRepoSort] = useState<RepoSort>("stars");
   const [dockerSort, setDockerSort] = useState<DockerSort>("pulls");
@@ -242,24 +243,32 @@ export function ToolResults({ toolName, data, isLoading, error, onRemove }: Tool
                         </p>
                       )}
 
-                      {/* Stats row */}
+                      {/* Stats row — hide zero values */}
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mb-3">
-                        <span className="flex items-center gap-1">
-                          <Star className="h-3 w-3 text-yellow-500" />
-                          <span className="tabular-nums">{repo.stars.toLocaleString()}</span>
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <GitFork className="h-3 w-3" />
-                          <span className="tabular-nums">{repo.forks.toLocaleString()}</span>
-                        </span>
-                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                          <Bug className="h-3 w-3" />
-                          <span className="tabular-nums">{repo.openIssues}</span> open
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Bug className="h-3 w-3" />
-                          <span className="tabular-nums">{repo.closedIssues}</span> closed
-                        </span>
+                        {repo.stars > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Star className="h-3 w-3 text-yellow-500" />
+                            <span className="tabular-nums">{repo.stars.toLocaleString()}</span>
+                          </span>
+                        )}
+                        {repo.forks > 0 && (
+                          <span className="flex items-center gap-1">
+                            <GitFork className="h-3 w-3" />
+                            <span className="tabular-nums">{repo.forks.toLocaleString()}</span>
+                          </span>
+                        )}
+                        {repo.openIssues > 0 && (
+                          <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                            <Bug className="h-3 w-3" />
+                            <span className="tabular-nums">{repo.openIssues}</span> open
+                          </span>
+                        )}
+                        {repo.closedIssues > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Bug className="h-3 w-3" />
+                            <span className="tabular-nums">{repo.closedIssues}</span> closed
+                          </span>
+                        )}
                       </div>
 
                       {/* Version & dates */}
@@ -308,27 +317,79 @@ export function ToolResults({ toolName, data, isLoading, error, onRemove }: Tool
                         )}
                       </div>
 
-                      {/* Release notes */}
-                      {repo.latestReleaseNotes && (
-                        <div className="mt-3 pt-3 border-t border-border">
-                          <button
-                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                            onClick={() => setExpandedNotes((prev) => ({
-                              ...prev,
-                              [repo.fullName]: !prev[repo.fullName],
-                            }))}
-                          >
-                            {expandedNotes[repo.fullName] ? (
-                              <ChevronUp className="h-3 w-3" />
-                            ) : (
-                              <ChevronDown className="h-3 w-3" />
-                            )}
-                            Release notes
-                          </button>
-                          {expandedNotes[repo.fullName] && (
-                            <pre className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap break-words max-h-40 overflow-y-auto bg-muted/50 rounded p-2">
-                              {repo.latestReleaseNotes}
-                            </pre>
+                      {/* Release notes + Changelog toggles */}
+                      {(repo.latestReleaseNotes || (repo.changelog && repo.changelog.length > 0)) && (
+                        <div className="mt-3 pt-3 border-t border-border space-y-2">
+                          {/* Latest release notes */}
+                          {repo.latestReleaseNotes && (
+                            <div>
+                              <button
+                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                onClick={() => setExpandedNotes((prev) => ({
+                                  ...prev,
+                                  [repo.fullName]: !prev[repo.fullName],
+                                }))}
+                              >
+                                {expandedNotes[repo.fullName] ? (
+                                  <ChevronUp className="h-3 w-3" />
+                                ) : (
+                                  <ChevronDown className="h-3 w-3" />
+                                )}
+                                Release notes
+                              </button>
+                              {expandedNotes[repo.fullName] && (
+                                <pre className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap break-words max-h-40 overflow-y-auto bg-muted/50 rounded p-2">
+                                  {repo.latestReleaseNotes}
+                                </pre>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Changelog / version history */}
+                          {repo.changelog && repo.changelog.length > 1 && (
+                            <div>
+                              <button
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                onClick={() => setExpandedChangelog((prev) => ({
+                                  ...prev,
+                                  [repo.fullName]: !prev[repo.fullName],
+                                }))}
+                              >
+                                <History className="h-3 w-3" />
+                                {expandedChangelog[repo.fullName] ? (
+                                  <ChevronUp className="h-3 w-3" />
+                                ) : (
+                                  <ChevronDown className="h-3 w-3" />
+                                )}
+                                Changelog ({repo.changelog.length} releases)
+                              </button>
+                              {expandedChangelog[repo.fullName] && (
+                                <div className="mt-2 max-h-60 overflow-y-auto bg-muted/50 rounded p-2 space-y-2">
+                                  {repo.changelog.map((release: ReleaseEntry, idx: number) => (
+                                    <div key={`${release.tag}-${idx}`} className="text-xs border-b border-border/40 last:border-0 pb-2 last:pb-0">
+                                      <div className="flex items-center gap-2">
+                                        <Badge variant="outline" className="text-[10px] h-4 px-1 font-mono">
+                                          {release.tag}
+                                        </Badge>
+                                        {release.name && release.name !== release.tag && (
+                                          <span className="font-medium text-foreground truncate">{release.name}</span>
+                                        )}
+                                        {release.publishedAt && (
+                                          <span className="text-muted-foreground ml-auto shrink-0">
+                                            {formatDate(release.publishedAt)}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {release.body && (
+                                        <pre className="mt-1 text-[10px] text-muted-foreground whitespace-pre-wrap break-words line-clamp-3">
+                                          {release.body}
+                                        </pre>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       )}
@@ -379,14 +440,18 @@ export function ToolResults({ toolName, data, isLoading, error, onRemove }: Tool
                         </p>
                       )}
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mb-2">
-                        <span className="flex items-center gap-1">
-                          <Star className="h-3 w-3 text-yellow-500" />
-                          <span className="tabular-nums">{img.starCount}</span>
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Download className="h-3 w-3" />
-                          <span className="tabular-nums">{img.pullCount.toLocaleString()}</span> pulls
-                        </span>
+                        {img.starCount > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Star className="h-3 w-3 text-yellow-500" />
+                            <span className="tabular-nums">{img.starCount}</span>
+                          </span>
+                        )}
+                        {img.pullCount > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Download className="h-3 w-3" />
+                            <span className="tabular-nums">{img.pullCount.toLocaleString()}</span> pulls
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {img.latestTag && (
