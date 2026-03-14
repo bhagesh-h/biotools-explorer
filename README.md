@@ -425,7 +425,4 @@ MIT
 
 ## Author
 
-**Bhagesh Hunakunti**
-
-- GitHub: [github.com/bhagesh-h](https://github.com/bhagesh-h)
-- LinkedIn: [linkedin.com/in/bhagesh-hunakunti](https://www.linkedin.com/in/bhagesh-hunakunti/)
+[Bhagesh Hunakunti](https://www.linkedin.com/in/bhagesh-hunakunti/)
