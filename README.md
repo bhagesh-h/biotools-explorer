@@ -10,7 +10,6 @@ A live, searchable app for discovering and comparing bioinformatics tools. Searc
 ## Table of Contents
 
 - [Features](#features)
-- [Screenshots](#screenshots)
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
@@ -22,7 +21,6 @@ A live, searchable app for discovering and comparing bioinformatics tools. Searc
 - [Usage Guide](#usage-guide)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
-- [License](#license)
 - [Author](#author)
 
 
@@ -38,28 +36,16 @@ A live, searchable app for discovering and comparing bioinformatics tools. Searc
 - **No database required** — All data is fetched live from public APIs. No sign-up or API keys needed.
 
 
-## Screenshots
-
-### Empty State (Light Mode)
-The landing page shows suggested tools (STAR, HISAT2, Seurat, Samtools, BWA, DESeq2) for one-click searching.
-
-### Explore View (Dark Mode)
-Search results display repository cards, Docker images, and publications in separate sections per tool.
-
-### Comparison View
-A data table comparing multiple tools side-by-side on all dimensions, plus a Docker comparison section.
-
-
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                    Browser                       │
+│                    Browser                      │
 │  React 18 + Tailwind CSS + shadcn/ui + Recharts │
 │  Hash routing (wouter) · TanStack React Query   │
 └────────────────────┬────────────────────────────┘
                      │ HTTP (fetch)
-┌────────────────────▼────────────────────────────┐
+┌────────────────────▼─────────────────────────────┐
 │              Express 5 Server                    │
 │         GET /api/search?q=<tool_name>            │
 │                                                  │
@@ -141,58 +127,6 @@ NODE_ENV=production node dist/index.cjs
 ```
 
 The production server serves the static frontend and the API on port **5000**.
-
-
-## Project Structure
-
-```
-biotools-dashboard/
-├── client/                     # Frontend (React + Vite)
-│   ├── index.html              # HTML entry point
-│   └── src/
-│       ├── App.tsx             # Root component, routing
-│       ├── main.tsx            # React DOM mount
-│       ├── index.css           # Tailwind config + custom theme (light/dark)
-│       ├── pages/
-│       │   ├── dashboard.tsx   # Main dashboard page
-│       │   └── not-found.tsx   # 404 page
-│       ├── components/
-│       │   ├── search-header.tsx       # Search bar + tool badges
-│       │   ├── empty-state.tsx         # Landing state with suggestions
-│       │   ├── tool-results.tsx        # Repo/Docker/Publication cards
-│       │   ├── tool-results-wrapper.tsx# Per-tool query wrapper
-│       │   ├── comparison-view.tsx     # Side-by-side comparison table
-│       │   ├── theme-provider.tsx      # Dark/light mode context
-│       │   ├── PerplexityAttribution.tsx # Footer with branding
-│       │   └── ui/                     # shadcn/ui components
-│       ├── hooks/
-│       │   ├── use-tool-search.ts      # TanStack Query hook for API
-│       │   ├── use-toast.ts            # Toast notifications
-│       │   └── use-mobile.tsx          # Responsive breakpoint
-│       └── lib/
-│           ├── queryClient.ts          # TanStack Query setup
-│           └── utils.ts                # cn() utility
-├── server/                     # Backend (Express 5)
-│   ├── index.ts                # Server bootstrap
-│   ├── routes.ts               # API routes + GitHub/Docker/PMC logic
-│   ├── storage.ts              # Storage interface (unused — no DB)
-│   ├── vite.ts                 # Vite dev middleware
-│   └── static.ts               # Static file serving (production)
-├── shared/
-│   └── schema.ts               # Zod schemas + TypeScript types
-├── script/
-│   └── build.ts                # Build script (Vite + esbuild)
-├── package.json                # Dependencies and scripts
-├── tsconfig.json               # TypeScript config
-├── tailwind.config.ts          # Tailwind CSS config
-├── vite.config.ts              # Vite config
-├── postcss.config.js           # PostCSS config
-├── drizzle.config.ts           # Drizzle ORM config (unused)
-├── components.json             # shadcn/ui config
-├── requirements.txt            # Dependency reference (points to npm)
-└── .gitignore
-```
-
 
 ## API Reference
 
