@@ -9,12 +9,11 @@ export function PerplexityAttribution() {
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-5">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           {/* Left: Branding */}
-          <div className="flex flex-col sm:flex-row items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>
               &copy; {currentYear} Created by{" "}
               <span className="font-semibold text-foreground">Bhagesh</span>
             </span>
-            <span className="hidden sm:inline text-border">|</span>
           </div>
 
           {/* Right: Social links */}

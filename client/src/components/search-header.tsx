@@ -27,19 +27,32 @@ export function SearchHeader({ searchedTools, onAddTool, onRemoveTool, isLoading
   return (
     <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3">
-        <div className="flex items-center gap-3">
-          {/* Logo — fixed width so the search bar centers properly */}
-          <div className="flex items-center gap-2 shrink-0 w-24">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Dna className="h-4.5 w-4.5 text-primary-foreground" />
+        {/* Mobile: two rows — logo row + search row.  Desktop: single row, search centered */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          {/* Top row on mobile: logo + theme toggle.  On desktop: logo (fixed width) */}
+          <div className="flex items-center justify-between sm:justify-start sm:w-24 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <Dna className="h-4.5 w-4.5 text-primary-foreground" />
+              </div>
+              <span className="font-semibold text-sm tracking-tight">
+                BioTools
+              </span>
             </div>
-            <span className="font-semibold text-sm hidden sm:block tracking-tight">
-              BioTools
-            </span>
+            {/* Theme toggle visible on mobile in the top row, hidden on desktop (shown below) */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-8 w-8 shrink-0 sm:hidden"
+              data-testid="button-theme-toggle-mobile"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
           </div>
 
-          {/* Search — centered with flex-1 + mx-auto */}
-          <form onSubmit={handleSubmit} className="flex-1 flex gap-2 max-w-xl mx-auto">
+          {/* Search — full width on mobile, centered on desktop */}
+          <form onSubmit={handleSubmit} className="flex gap-2 flex-1 sm:max-w-xl sm:mx-auto">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -62,8 +75,8 @@ export function SearchHeader({ searchedTools, onAddTool, onRemoveTool, isLoading
             </Button>
           </form>
 
-          {/* Theme toggle — fixed width to balance the logo side */}
-          <div className="w-24 flex justify-end">
+          {/* Theme toggle — desktop only, fixed width to balance logo */}
+          <div className="hidden sm:flex w-24 justify-end">
             <Button
               variant="ghost"
               size="icon"
